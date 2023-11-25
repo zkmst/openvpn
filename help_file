@@ -1,0 +1,76 @@
+#apt update
+#apt upgrade
+#apt install iptables
+#apt install openvpn
+#apt install easy-rsa
+#iptables-restore < /home/iptables.rules
+# apt install tree
+
+##########################证书体系######################################
+#cd /home
+#mkdir root_ca
+#cd root_ra
+#cp -r /usr/share/easy-rsa/* ./
+#cp vars.example vars
+#vim vars  修改证书信息
+
+	set_var EASYRSA_REQ_COUNTRY     "US"
+	set_var EASYRSA_REQ_PROVINCE    "California"
+	set_var EASYRSA_REQ_CITY        "San Francisco"
+	set_var EASYRSA_REQ_ORG "Copyleft Certificate Co"
+	set_var EASYRSA_REQ_EMAIL       "me@example.net"
+	set_var EASYRSA_REQ_OU          "itime"
+
+# ./easyrsa init-pki
+# ./easyrsa build-ca  设置一个ca证书密码和名称比如 itime，获得根证书
+
+#为服务器端创建证书
+#mkdir vpn_server
+#cd vpn_server
+#cp -r /usr/share/easy-rsa/* ./
+#cp vars.example vars  修改证书信息
+# ./easyrsa init-pki
+# ./easyrsa gen-req vpn_server nopass
+#生成的req在easyrsa3/pki/reqs/
+#生成的key在easyrsa3/pki/private/
+
+# cd /home/root_ca/
+#./easyrsa import-req /home/vpn_server/pki/reqs/vpn_server.req vpn_server 引入密码
+#./easyrsa sign-req server vpn_server  签名秘钥
+#生成的crt在pki/issued/下vpn_server.crt
+
+#秘钥交换时的DH算法，确保密钥可以穿越不安全网络
+#./easyrsa gen-dh 
+
+#为客户端创建证书
+mkdir vpn_client
+#cd vpn_client
+#cp -r /usr/share/easy-rsa/* ./
+#cp vars.example vars  修改证书信息
+# ./easyrsa init-pki
+# ./easyrsa gen-req vpn_client nopass
+#生成的req在easyrsa3/pki/reqs/
+#生成的key在easyrsa3/pki/private/
+
+# cd /home/root_ca/
+#./easyrsa import-req /home/vpn_client/pki/reqs/vpn_client.req vpn_client 引入密码
+#./easyrsa sign-req client vpn_client  签名秘钥
+#生成的crt在pki/issued/下vpn_client.crt
+
+##########################openvpn######################################
+
+#拷贝备份的server.conf 到 /etc/openvpn/目录下
+#openvpn --config /etc/openvpn/server.conf 尝试启动
+
+#systemctl enable openvpn@server
+#
+############################client###################################
+#拷贝
+/home/root_ca/pki/ca.crt
+/home/root_ca/pki/issued/vpn_client.key
+/home/vpn_client/pki/private/vpn_client.key
+/etc/openvpn/client.conf
+
+
+##############################auto start ###########################################
+sudo /usr/sbin/openvpn --daemon ovpn-server --status /run/openvpn/server.status --cd /etc/openvpn --script-security 2 --config /etc/openvpn/server.conf --writepid /run/openvpn/server.pid
